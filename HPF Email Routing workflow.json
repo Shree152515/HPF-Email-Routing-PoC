@@ -1,0 +1,389 @@
+{
+  "name": "HPF Email Routing PoC",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "49244d51-f5ec-401b-970e-66dbf46fa356",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "d4313d2c-d317-4cf4-a6ef-9f16077cbd0d",
+      "name": "Webhook",
+      "webhookId": "49244d51-f5ec-401b-970e-66dbf46fa356"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_OPENAI_KEY_HERE"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  {\n    \"model\": \"gpt-4o-mini\",\n    \"messages\": [\n      {\n        \"role\": \"system\",\n        \"content\": \"You are an email classifier. Return ONLY valid JSON. Do not add extra text.\"\n      },\n      {\n        \"role\": \"user\",\n        \"content\": `Analyze this email and return JSON with keys: category (New Application / Status Update / General Question / Irrelevant), organization_name, contact_person, project_title.\n\nEmail Subject: ${$json.subject}\n\nEmail Body: ${$json.body}`\n      }\n    ],\n    \"response_format\": {\n      \"type\": \"json_object\"\n    }\n  }\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        416,
+        0
+      ],
+      "id": "c9a2f060-99f8-4cbd-af33-061be2959334",
+      "name": "OpenAI Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all incoming items from webhook\nconst items = $input.all();\n\nreturn items.map(item => {\n    // 1. Find the data (Handle Postman nested body vs Flat JSON)\n    const root = item.json;\n    let emailData = {};\n\n    if (root.subject) {\n        // Data is at the top level\n        emailData = root;\n    } else if (root.body && root.body.subject) {\n        // Data is inside 'body' object (The Postman case)\n        emailData = root.body;\n    } else {\n        // Fallback\n        emailData = root.body || {};\n    }\n\n    // 2. SAFETY CHECK: Ensure 'body' is a STRING, not an Object\n    let bodyText = emailData.body || \"No body\";\n    \n    // If body is actually an object (the bug you have now), convert it to text\n    if (typeof bodyText === 'object') {\n        bodyText = JSON.stringify(bodyText);\n    }\n\n    return {\n        json: {\n            subject: emailData.subject || \"No subject\",\n            body: bodyText, \n            from: emailData.from || \"unknown@example.com\",\n            to: emailData.to || \"unknown@example.com\"\n        }\n    };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "b6677366-b9f5-43a0-9630-fd359359510f",
+      "name": "Email Data Extraction"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "New Application",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "4551a4fa-cdca-45e1-859d-ae20664381e4"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "New App"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "46669753-13c9-475b-b669-702818c5bc4d",
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "Status Update",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Others"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "1d06e7a5-6e82-44f5-9501-3cc126d2547d",
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "General Question",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Others"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "b6eafd92-d1ec-4cb9-9d44-f8650d355b3b",
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "Irrelevant",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Others"
+            }
+          ]
+        },
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        832,
+        0
+      ],
+      "id": "1bddedf1-5178-4f31-8b0f-e150948d6ac6",
+      "name": "Traffic Polizei"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        160
+      ],
+      "id": "da031e3d-7b59-49be-a506-5da14d1b00a0",
+      "name": "NoOP"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get the content string from the OpenAI response\nconst response = $input.first().json;\nconst contentString = response.choices ? response.choices[0].message.content : \"{}\";\n\n// 2. Clean the string\nconst cleanString = contentString.replace(/```json|```/g, '').trim();\n\n// 3. Parse the string into an actual JSON object\nlet aiData;\ntry {\n  aiData = JSON.parse(cleanString);\n} catch (error) {\n  aiData = { category: \"Irrelevant\", error: \"AI did not return valid JSON\" };\n}\n\n// 4. SAFELY Retrieve Original Email Data\n// FIX: We look at the \"Email Data Extraction\" node to get the sender info\nlet originalEmail = { from: \"test-sender@example.com\", subject: \"Test Subject\" };\n\ntry {\n    const previousData = $('Email Data Extraction').first(); // <--- THIS WAS THE FIX\n    if (previousData) {\n        originalEmail = previousData.json;\n    }\n} catch (e) {\n    console.log(\"Previous node data not found - using dummy data.\");\n}\n\n// 5. Output combined data\nreturn {\n  json: {\n    category: aiData.category || \"General Question\",\n    organization_name: aiData.organization_name,\n    contact_person: aiData.contact_person,\n    project_title: aiData.project_title,\n    reply_to_email: originalEmail.from, // Now this will be the real email\n    original_subject: originalEmail.subject\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        0
+      ],
+      "id": "5ddfb49d-adb4-436e-97e4-6d81ebaea7cf",
+      "name": "Parser"
+    },
+    {
+      "parameters": {
+        "fromEmail": "info@hassoplattnerfoundation.org",
+        "toEmail": "={{ $json.reply_to_email }}",
+        "subject": "=Re: {{ $json.project_title }}",
+        "emailFormat": "text",
+        "text": "=Dear {{ $json.contact_person }},\n\nThank you for your application regarding {{ $json.organization_name }}.\nWe have received your request and our team will review it shortly.\n\nBest regards,\nThe Foundation Team",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1280,
+        -96
+      ],
+      "id": "2f3ff76c-2694-4922-9a65-3974f9d728d1",
+      "name": "Send email",
+      "webhookId": "df10e075-dd67-4154-a4c7-f561d93969cb",
+      "credentials": {
+        "smtp": {
+          "id": "YEwuw4SqdkPrbYcb",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "blob",
+        "operation": "create",
+        "container": {
+          "__rl": true,
+          "value": "demo-logs",
+          "mode": "list",
+          "cachedResultName": "demo-logs"
+        },
+        "blobCreate": "=application-{{ $('Parser').first().json.contact_person }}-{{ $now.format('yyyyMMdd-HHmm') }}.json\n",
+        "options": {
+          "contentType": "application/json"
+        },
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-base.azureStorage",
+      "typeVersion": 1,
+      "position": [
+        1792,
+        128
+      ],
+      "id": "8a64fb11-85ae-4aa1-960d-0d437ab4978d",
+      "name": "Create blob",
+      "credentials": {
+        "azureStorageSharedKeyApi": {
+          "id": "myn2QJ7m5nzB4EjB",
+          "name": "Azure Storage account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1568,
+        128
+      ],
+      "id": "ee2dced8-17db-4ea4-a3f7-d8c24338383b",
+      "name": "Convert to File"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Email Data Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Data Extraction": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Request": {
+      "main": [
+        [
+          {
+            "node": "Parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traffic Polizei": {
+      "main": [
+        [
+          {
+            "node": "Send email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "NoOP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "NoOP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "NoOP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser": {
+      "main": [
+        [
+          {
+            "node": "Traffic Polizei",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send email": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Create blob",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "8ccbb8e2-a943-4f91-8840-3e61e881cf75",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "14124fb5c4873580548e73e26e5ca5bdd0ca244f1a5eeb8808db8ca27affd66e"
+  },
+  "id": "EX1BheHHZLXjLQHp",
+  "tags": []
+}
