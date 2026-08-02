@@ -1,7 +1,7 @@
 # Intelligent Email Routing & Automation (PoC)
 
 ## 📌 Project Overview
-This Proof of Concept (PoC) automates the classification and processing of incoming grant applications for the HPF Enginnering. It utilizes **OpenAI (GPT-4o)** for semantic analysis and **n8n** for orchestration, reducing manual triage time from minutes to seconds.
+This Proof of Concept (PoC) automates the classification and processing of incoming grant applications that utilizes **OpenAI (GPT-4o)** for semantic analysis and **n8n** for orchestration, reducing manual triage time from minutes to seconds.
 
 ## 🏗 Architectural Choices
 
